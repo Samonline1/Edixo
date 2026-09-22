@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { PlaySquare, Edit3, Settings } from 'lucide-react';
 

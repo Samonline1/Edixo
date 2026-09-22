@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import YouTube from 'react-youtube';
-import { Plus, ArrowLeft, Play, Pause, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video } from 'lucide-react';
+import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video } from 'lucide-react';
 import type { ClipProject, ClipItem } from '../types';
 import { extractVideoData } from '../utils';
 
