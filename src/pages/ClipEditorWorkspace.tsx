@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import YouTube from 'react-youtube';
-import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video } from 'lucide-react';
+import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink } from 'lucide-react';
 import type { ClipProject, ClipItem } from '../types';
 import { extractVideoData } from '../utils';
 
@@ -32,10 +32,12 @@ export default function ClipEditorWorkspace() {
   const projectClips = clips.filter(c => c.projectId === projectId);
   
   // Editor State
-  const [inputMode, setInputMode] = useState<'video'|'image'>('video');
+  const [inputMode, setInputMode] = useState<'video'|'image'|'article'>('video');
   const [inputUrl, setInputUrl] = useState('');
   const [imageTimer, setImageTimer] = useState(10); // Default 10s zoom animation
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [articlePromptUrl, setArticlePromptUrl] = useState<string | null>(null);
+  const [tempArticleTitle, setTempArticleTitle] = useState("Website Article");
   const [infoModalClip, setInfoModalClip] = useState<ClipItem | null>(null);
   const [tempVideoId, setTempVideoId] = useState<string | null>(null);
   const [clipTitle, setClipTitle] = useState('');
@@ -135,6 +137,13 @@ export default function ClipEditorWorkspace() {
        return;
     }
 
+    if (inputMode === 'article') {
+       if (!inputUrl.trim()) return alert("Please enter an article URL");
+       setArticlePromptUrl(inputUrl);
+       setTempArticleTitle("Website Article");
+       return;
+    }
+
     const { id: ytId } = extractVideoData(inputUrl);
     if (!ytId) return alert("Invalid YouTube URL");
     
@@ -144,6 +153,27 @@ export default function ClipEditorWorkspace() {
     setEndTime(10);
     setIsLooping(true);
     setIsModalOpen(true);
+  };
+
+  const handleSaveArticle = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!articlePromptUrl) return;
+    const newClip: ClipItem = {
+      id: uuidv4(),
+      projectId: projectId!,
+      youtubeId: '',
+      url: articlePromptUrl,
+      startTime: 0,
+      endTime: 0,
+      loop: false,
+      addedAt: Date.now(),
+      title: tempArticleTitle.trim() || "Website Article",
+      type: 'article'
+    };
+    setClips(prev => [newClip, ...prev]);
+    setInputUrl('');
+    setArticlePromptUrl(null);
+    if (!currentClip) setCurrentClip(newClip);
   };
 
   const handleSaveClip = () => {
@@ -196,10 +226,26 @@ export default function ClipEditorWorkspace() {
     <div className="flex flex-col md:flex-row h-[100dvh] bg-[#121212] text-white overflow-hidden font-sans">
       
       {/* VIDEO CANVAS */}
-      <div className="w-full flex-none aspect-video md:aspect-auto md:w-3/4 md:h-full relative bg-black flex flex-col items-center justify-center z-10">
+      <div className={`w-full flex-none ${currentClip?.type === 'article' ? 'h-[60vh]' : 'aspect-video'} md:h-full md:aspect-auto md:w-3/4 relative bg-black flex flex-col items-center justify-center z-10 transition-all duration-300`}>
         {currentClip ? (
           <div className="w-full h-full relative overflow-hidden">
-            {currentClip.type === 'image' ? (
+            {currentClip.type === 'article' ? (
+              <div className="w-full h-full bg-white relative">
+                 <iframe 
+                   src={currentClip.url}
+                   title={currentClip.title}
+                   className="w-full h-full border-none"
+                   sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                 />
+                 <div className="absolute bottom-4 right-4 bg-black/80 text-white p-2 md:px-3 md:py-2 rounded-lg flex items-center gap-3 backdrop-blur-md shadow-2xl z-50 border border-white/10">
+                    <span className="text-xs text-neutral-300 hidden md:inline">Refusing to connect?</span>
+                    <a href={currentClip.url} target="_blank" rel="noreferrer" className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 w-8 h-8 md:w-auto md:h-auto md:px-2.5 md:py-1 rounded md:text-[10px] uppercase tracking-wider transition font-bold" title="Open in New Tab">
+                       <ExternalLink size={16} className="md:w-3 md:h-3" />
+                       <span className="hidden md:inline ml-1.5">Open Tab</span>
+                    </a>
+                 </div>
+              </div>
+            ) : currentClip.type === 'image' ? (
               <div className="w-full h-full bg-[#181818] overflow-hidden flex items-center justify-center relative">
                  <img 
                    src={currentClip.url} 
@@ -245,17 +291,23 @@ export default function ClipEditorWorkspace() {
           <form onSubmit={handleOpenModal} className="flex gap-2 relative">
             <button 
               type="button"
-              onClick={() => setInputMode(prev => prev === 'video' ? 'image' : 'video')}
-              className="bg-[#242424] p-3 rounded-lg hover:bg-[#2a2a2a] text-neutral-400 hover:text-white transition flex-shrink-0"
-              title={inputMode === 'video' ? "Switch to Image Mode" : "Switch to Video Mode"}
+              onClick={() => {
+                 if (inputMode === 'video') setInputMode('image');
+                 else if (inputMode === 'image') setInputMode('article');
+                 else setInputMode('video');
+              }}
+              className="bg-[#242424] p-3 rounded-lg hover:bg-[#2a2a2a] text-neutral-400 hover:text-white transition flex-shrink-0 w-11 flex justify-center"
+              title={`Switch Mode (Current: ${inputMode})`}
             >
-              {inputMode === 'video' ? <ImageIcon size={20} /> : <Video size={20} />}
+              {inputMode === 'video' && <Video size={20} />}
+              {inputMode === 'image' && <ImageIcon size={20} />}
+              {inputMode === 'article' && <FileText size={20} />}
             </button>
             <input
               type="text"
               value={inputUrl}
               onChange={(e) => setInputUrl(e.target.value)}
-              placeholder={inputMode === 'video' ? "Paste YouTube Link..." : "Paste Image URL..."}
+              placeholder={inputMode === 'video' ? "Paste YouTube Link..." : inputMode === 'image' ? "Paste Image URL..." : "Paste Article URL..."}
               className="flex-1 bg-[#242424] text-sm rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-blue-500 transition-all min-w-0"
             />
             {inputMode === 'image' && (
@@ -278,6 +330,47 @@ export default function ClipEditorWorkspace() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
           {projectClips.map(clip => {
             const isActive = currentClip?.id === clip.id;
+
+            if (clip.type === 'article') {
+               return (
+                  <div 
+                    key={clip.id}
+                    onClick={() => setCurrentClip(clip)}
+                    className={`p-3 rounded-xl cursor-pointer group transition-all duration-300 flex items-center gap-3 ${
+                      isActive ? 'bg-[#2a2a2a] ring-1 ring-blue-500/50' : 'bg-[#202020] hover:bg-[#2a2a2a]'
+                    }`}
+                  >
+                     <div className="w-10 h-10 rounded-lg bg-[#181818] flex items-center justify-center text-neutral-500 border border-white/5 shrink-0">
+                        <FileText size={18} />
+                     </div>
+                     <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm truncate">{clip.title}</h3>
+                        <p className="text-[10px] text-neutral-500 truncate">{clip.url}</p>
+                     </div>
+                     <div className="flex gap-1 shrink-0">
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); setInfoModalClip(clip); }}
+                         className="text-neutral-500 hover:text-white transition p-1"
+                         title="Info"
+                       >
+                         <Info size={16} />
+                       </button>
+                       <button 
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           setClips(clips.filter(c => c.id !== clip.id));
+                           if(currentClip?.id === clip.id) setCurrentClip(null);
+                         }}
+                         className="text-neutral-500 hover:text-red-500 transition p-1"
+                         title="Delete"
+                       >
+                         <Trash2 size={16} />
+                       </button>
+                     </div>
+                  </div>
+               );
+            }
+
             return (
               <div 
                 key={clip.id}
@@ -466,6 +559,30 @@ export default function ClipEditorWorkspace() {
         </div>
       )}
 
+      {/* ARTICLE TITLE MODAL */}
+      {articlePromptUrl && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <form onSubmit={handleSaveArticle} className="bg-[#1e1e1e] p-6 rounded-2xl w-full max-w-md shadow-2xl border border-white/10 flex flex-col">
+            <h2 className="text-xl font-bold mb-4">Name your Article</h2>
+            <div className="mb-6">
+              <label className="block text-xs text-neutral-400 mb-2 uppercase tracking-wider">Article Title</label>
+              <input 
+                type="text" 
+                autoFocus
+                value={tempArticleTitle}
+                onChange={e => setTempArticleTitle(e.target.value)}
+                className="w-full bg-[#242424] px-4 py-3 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                placeholder="E.g., Forbes Interview"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-white/5 shrink-0">
+               <button type="button" onClick={() => setArticlePromptUrl(null)} className="px-4 py-2 rounded-lg hover:bg-white/5 text-sm transition">Cancel</button>
+               <button type="submit" className="px-6 py-2 bg-blue-600 rounded-lg hover:bg-blue-500 font-medium text-sm transition shadow-lg shadow-blue-500/20">Save Article</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* INFO MODAL */}
       {infoModalClip && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center z-50 animate-in fade-in duration-200">
@@ -490,7 +607,7 @@ export default function ClipEditorWorkspace() {
                 <p className="text-neutral-500 mb-1 text-xs uppercase tracking-wider">Added On</p>
                 <p>{new Date(infoModalClip.addedAt).toLocaleString()}</p>
               </div>
-              {infoModalClip.type !== 'image' && (
+              {(!infoModalClip.type || infoModalClip.type === 'video') && (
                 <>
                   <div>
                     <p className="text-neutral-500 mb-1 text-xs uppercase tracking-wider">Clip Timeline</p>

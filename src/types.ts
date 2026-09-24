@@ -28,6 +28,6 @@ export interface ClipItem {
   loop: boolean;
   addedAt: number;
   title: string;
-  type?: 'video' | 'image';
+  type?: 'video' | 'image' | 'article';
   zoomDuration?: number; // in seconds
 }
