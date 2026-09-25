@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import YouTube from 'react-youtube';
-import { Search, Plus, Play, Tag as TagIcon, X, Info, Trash2, FastForward, Rewind, Pause, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Play, Tag as TagIcon, X, Info, Trash2, FastForward, Rewind, Pause, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { VideoItem, Tag } from '../types';
 import { extractVideoData } from '../utils';
@@ -38,6 +38,7 @@ function VideoManager() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playerState, setPlayerState] = useState(-1); // -1: unstarted, 1: playing, 2: paused
+  const [isMuted, setIsMuted] = useState(false);
 
   // Keyboard controls & Progress Polling
   useEffect(() => {
@@ -234,6 +235,26 @@ function VideoManager() {
               className={`absolute top-0 left-0 w-full h-full pointer-events-none transition-opacity duration-1000 ${isVideoPlaying ? 'opacity-100' : 'opacity-0'}`} 
               iframeClassName="w-full h-full"
             />
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (playerRef.current) {
+                  const muted = playerRef.current.isMuted();
+                  if (muted) {
+                    playerRef.current.unMute();
+                    setIsMuted(false);
+                  } else {
+                    playerRef.current.mute();
+                    setIsMuted(true);
+                  }
+                }
+              }}
+              className="absolute bottom-4 left-4 bg-black/80 text-white p-2 md:p-3 rounded-lg hover:bg-black transition border border-white/10 z-50 backdrop-blur-md cursor-pointer flex items-center justify-center"
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+            </button>
           </div>
         ) : (
           <div className="text-neutral-500 flex flex-col items-center gap-4 p-4 text-center">

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import YouTube from 'react-youtube';
-import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink } from 'lucide-react';
+import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink, Volume2, VolumeX } from 'lucide-react';
 import type { ClipProject, ClipItem } from '../types';
 import { extractVideoData } from '../utils';
 
@@ -74,6 +74,7 @@ export default function ClipEditorWorkspace() {
   const mainPlayerRef = useRef<any>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isModalPlaying, setIsModalPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   // Loop & End Check for Main Player
   useEffect(() => {
@@ -266,6 +267,28 @@ export default function ClipEditorWorkspace() {
                 className="absolute top-0 left-0 w-full h-full pointer-events-none" 
                 iframeClassName="w-full h-full"
               />
+            )}
+            
+            {currentClip.type !== 'image' && currentClip.type !== 'article' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (mainPlayerRef.current) {
+                    const muted = mainPlayerRef.current.isMuted();
+                    if (muted) {
+                      mainPlayerRef.current.unMute();
+                      setIsMuted(false);
+                    } else {
+                      mainPlayerRef.current.mute();
+                      setIsMuted(true);
+                    }
+                  }
+                }}
+                className="absolute bottom-4 left-4 bg-black/80 text-white p-2 md:p-3 rounded-lg hover:bg-black transition border border-white/10 z-50 backdrop-blur-md cursor-pointer flex items-center justify-center"
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              </button>
             )}
           </div>
         ) : (
