@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { PlaySquare, Edit3, Settings } from 'lucide-react';
+import { PlaySquare, Edit3, FolderOpen } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -35,16 +35,18 @@ export default function Home() {
             </div>
           </Link>
 
-          {/* Placeholder App 3 */}
-          <div className="bg-[#1e1e1e]/50 border border-white/5 rounded-2xl p-6 opacity-60 cursor-not-allowed h-full flex flex-col">
-             <div className="w-12 h-12 rounded-xl bg-green-500/10 text-green-400 flex items-center justify-center mb-6">
-                <Settings size={24} />
+          {/* App 3: Asset Vault */}
+          <Link to="/asset-vault" className="block group">
+            <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-[#2a2a2a] hover:border-green-500/50 hover:shadow-[0_0_20px_rgba(34,197,94,0.1)] h-full flex flex-col">
+              <div className="w-12 h-12 rounded-xl bg-green-500/10 text-green-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <FolderOpen size={24} />
               </div>
-              <h2 className="text-xl font-bold mb-2 text-white">ThumbnailGen (Coming Soon)</h2>
+              <h2 className="text-xl font-bold mb-2 text-white">Asset Vault</h2>
               <p className="text-sm text-neutral-400 flex-grow">
-                Generate engaging YouTube thumbnails automatically from your video tags and titles.
+                Organize videos, photos, and articles into folders. Search and browse everything in one place.
               </p>
-          </div>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

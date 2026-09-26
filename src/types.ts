@@ -31,3 +31,22 @@ export interface ClipItem {
   type?: 'video' | 'image' | 'article';
   zoomDuration?: number; // in seconds
 }
+
+export type AssetType = 'video' | 'image' | 'article';
+
+export interface Asset {
+  id: string;
+  type: AssetType;
+  url: string;
+  title: string;
+  tagId: string;
+  addedAt: number;
+  youtubeId?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+export interface AssetTag {
+  id: string;
+  name: string;
+}
