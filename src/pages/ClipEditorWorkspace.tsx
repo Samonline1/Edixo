@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import YouTube from 'react-youtube';
-import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink, Volume2, VolumeX } from 'lucide-react';
+import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink, Volume2, VolumeX, Folder, FolderOpen, FolderPlus, Check } from 'lucide-react';
 import type { ClipProject, ClipItem } from '../types';
 import { extractVideoData } from '../utils';
 
@@ -41,6 +41,14 @@ export default function ClipEditorWorkspace() {
   const [infoModalClip, setInfoModalClip] = useState<ClipItem | null>(null);
   const [tempVideoId, setTempVideoId] = useState<string | null>(null);
   const [clipTitle, setClipTitle] = useState('');
+  
+  const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
+  const [vaultAssets, setVaultAssets] = useState<any[]>([]);
+  const [vaultTags, setVaultTags] = useState<any[]>([]);
+  const [activeVaultFolderId, setActiveVaultFolderId] = useState<string | null>(null);
+  const [isSaveToVaultModalOpen, setIsSaveToVaultModalOpen] = useState(false);
+  const [saveVaultFolderId, setSaveVaultFolderId] = useState('');
+  const [saveVaultNewFolderName, setSaveVaultNewFolderName] = useState('');
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(10);
   const [startTimeStr, setStartTimeStr] = useState("0:00");
@@ -112,6 +120,11 @@ export default function ClipEditorWorkspace() {
     }, 100);
     return () => clearInterval(interval);
   }, [isModalOpen, isModalPlaying, startTime, endTime, isLooping]);
+
+  useEffect(() => {
+    setVaultAssets(JSON.parse(localStorage.getItem('yt_assets') || '[]'));
+    setVaultTags(JSON.parse(localStorage.getItem('yt_asset_tags') || '[]'));
+  }, [isVaultModalOpen]);
 
   const handleOpenModal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +202,8 @@ export default function ClipEditorWorkspace() {
       endTime: endTime,
       loop: isLooping,
       addedAt: Date.now(),
-      title: clipTitle.trim() || `Clip - ${tempVideoId}`
+      title: clipTitle.trim() || `Clip - ${tempVideoId}`,
+      type: 'video'
     };
 
     setClips(prev => [newClip, ...prev]);
@@ -198,6 +212,61 @@ export default function ClipEditorWorkspace() {
     if (!currentClip) {
       setCurrentClip(newClip);
     }
+  };
+
+  const handleImportAsset = (asset: any) => {
+    const newClip: ClipItem = {
+      id: uuidv4(),
+      projectId: projectId!,
+      youtubeId: asset.youtubeId || '',
+      url: asset.url,
+      startTime: asset.startTime || 0,
+      endTime: asset.endTime || 10,
+      loop: false,
+      addedAt: Date.now(),
+      title: asset.title,
+      type: asset.type
+    };
+    setClips(prev => [newClip, ...prev]);
+    if (!currentClip) setCurrentClip(newClip);
+    setIsVaultModalOpen(false);
+    setActiveVaultFolderId(null);
+  };
+
+  const handleSaveToVaultSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!infoModalClip) return;
+    
+    let finalTagId = saveVaultFolderId;
+    if (finalTagId === 'new') {
+      if (!saveVaultNewFolderName.trim()) return alert("Please enter a folder name");
+      const newTag = { id: uuidv4(), name: saveVaultNewFolderName.trim() };
+      const updatedTags = [...vaultTags, newTag];
+      setVaultTags(updatedTags);
+      localStorage.setItem('yt_asset_tags', JSON.stringify(updatedTags));
+      finalTagId = newTag.id;
+    }
+    if (!finalTagId) return alert("Please select or create a folder");
+
+    const newAsset = {
+      id: uuidv4(),
+      type: infoModalClip.type || 'video',
+      url: infoModalClip.url,
+      title: infoModalClip.title,
+      tagId: finalTagId,
+      addedAt: Date.now(),
+      youtubeId: infoModalClip.youtubeId,
+      startTime: (!infoModalClip.type || infoModalClip.type === 'video') ? infoModalClip.startTime : undefined,
+      endTime: (!infoModalClip.type || infoModalClip.type === 'video') ? infoModalClip.endTime : undefined,
+    };
+    
+    const updatedAssets = [newAsset, ...vaultAssets];
+    setVaultAssets(updatedAssets);
+    localStorage.setItem('yt_assets', JSON.stringify(updatedAssets));
+    setIsSaveToVaultModalOpen(false);
+    setSaveVaultFolderId('');
+    setSaveVaultNewFolderName('');
+    setInfoModalClip(null);
   };
 
   const formatTime = (s: number) => {
@@ -306,10 +375,18 @@ export default function ClipEditorWorkspace() {
         
         {/* Top */}
         <div className="p-5 border-b border-white/5 space-y-4">
-          <Link to="/clip-editor" className="flex items-center gap-2 text-neutral-400 hover:text-white transition w-max mb-2">
-            <ArrowLeft size={16} />
-            <span className="text-sm font-medium">{project.name}</span>
-          </Link>
+          <div className="flex justify-between items-center mb-2">
+            <Link to="/clip-editor" className="flex items-center gap-2 text-neutral-400 hover:text-white transition w-max">
+              <ArrowLeft size={16} />
+              <span className="text-sm font-medium">{project.name}</span>
+            </Link>
+            <button
+              onClick={() => setIsVaultModalOpen(true)}
+              className="text-xs flex items-center gap-1.5 bg-green-500/10 text-green-500 px-3 py-1.5 rounded-lg hover:bg-green-500/20 transition font-medium"
+            >
+              <FolderOpen size={14} /> Vault
+            </button>
+          </div>
           
           <form onSubmit={handleOpenModal} className="flex gap-2 relative">
             <button 
@@ -353,6 +430,12 @@ export default function ClipEditorWorkspace() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
           {projectClips.map(clip => {
             const isActive = currentClip?.id === clip.id;
+            const isInVault = vaultAssets.some(va => {
+               if (!clip.type || clip.type === 'video') {
+                  return va.youtubeId === clip.youtubeId && va.youtubeId && va.startTime === clip.startTime && va.endTime === clip.endTime;
+               }
+               return va.url === clip.url;
+            });
 
             if (clip.type === 'article') {
                return (
@@ -363,7 +446,8 @@ export default function ClipEditorWorkspace() {
                       isActive ? 'bg-[#2a2a2a] ring-1 ring-blue-500/50' : 'bg-[#202020] hover:bg-[#2a2a2a]'
                     }`}
                   >
-                     <div className="w-10 h-10 rounded-lg bg-[#181818] flex items-center justify-center text-neutral-500 border border-white/5 shrink-0">
+                     <div className="w-10 h-10 rounded-lg bg-[#181818] flex items-center justify-center text-neutral-500 border border-white/5 shrink-0 relative">
+                        {isInVault && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#1e1e1e]" title="Saved in Vault" />}
                         <FileText size={18} />
                      </div>
                      <div className="flex-1 min-w-0">
@@ -403,6 +487,7 @@ export default function ClipEditorWorkspace() {
                 }`}
               >
                 <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-3">
+                  {isInVault && <div className="absolute top-2 left-2 z-20 w-2.5 h-2.5 bg-green-500 rounded-full border border-black shadow-lg" title="Saved in Vault" />}
                   <img 
                     src={clip.type === 'image' ? clip.url : `https://img.youtube.com/vi/${clip.youtubeId}/mqdefault.jpg`} 
                     alt="Thumbnail"
@@ -613,7 +698,30 @@ export default function ClipEditorWorkspace() {
             <button onClick={() => setInfoModalClip(null)} className="absolute top-4 right-4 text-neutral-400 hover:text-white transition">
               <X size={20} />
             </button>
-            <h2 className="text-xl font-bold mb-6 text-white">Clip Details</h2>
+            <div className="flex justify-between items-center mb-6 pr-8">
+               <h2 className="text-xl font-bold text-white">Clip Details</h2>
+               {(() => {
+                 const isInfoClipInVault = vaultAssets.some(va => {
+                   if (!infoModalClip.type || infoModalClip.type === 'video') {
+                     return va.youtubeId === infoModalClip.youtubeId && va.youtubeId && va.startTime === infoModalClip.startTime && va.endTime === infoModalClip.endTime;
+                   }
+                   return va.url === infoModalClip.url;
+                 });
+                 
+                 return isInfoClipInVault ? (
+                   <div className="flex items-center gap-1.5 bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border border-green-500/30">
+                      <Check size={14} /> In Vault
+                   </div>
+                 ) : (
+                   <button 
+                      onClick={() => setIsSaveToVaultModalOpen(true)}
+                      className="flex items-center gap-1.5 bg-green-500/10 text-green-500 hover:bg-green-500/20 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition border border-green-500/20"
+                   >
+                      <Plus size={14} /> Vault
+                   </button>
+                 );
+               })()}
+            </div>
             
             <div className="space-y-4 text-sm text-neutral-300">
               <div>
@@ -653,6 +761,158 @@ export default function ClipEditorWorkspace() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* VAULT MODAL */}
+      {isVaultModalOpen && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-[#1e1e1e] p-6 rounded-2xl w-full max-w-5xl shadow-2xl border border-white/10 flex flex-col h-[80vh]">
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                {activeVaultFolderId && (
+                   <button onClick={() => setActiveVaultFolderId(null)} className="p-2 hover:bg-[#2a2a2a] rounded-lg transition text-neutral-400">
+                     <ArrowLeft size={20} />
+                   </button>
+                )}
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                   {activeVaultFolderId ? (
+                     <>
+                        <FolderOpen size={24} className="text-green-500" />
+                        {vaultTags.find((t: any) => t.id === activeVaultFolderId)?.name}
+                     </>
+                   ) : (
+                     <>
+                        <Folder size={24} className="text-green-500" />
+                        Import from Asset Vault
+                     </>
+                   )}
+                </h2>
+              </div>
+              <button onClick={() => { setIsVaultModalOpen(false); setActiveVaultFolderId(null); }} className="text-neutral-500 hover:text-white transition">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+              {!activeVaultFolderId ? (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {vaultTags.length === 0 ? (
+                      <p className="text-neutral-500 col-span-full">No folders found in your Vault.</p>
+                   ) : (
+                      vaultTags.map((tag: any) => {
+                         const count = vaultAssets.filter((a: any) => a.tagId === tag.id).length;
+                         return (
+                            <div 
+                              key={tag.id}
+                              onClick={() => setActiveVaultFolderId(tag.id)}
+                              className="bg-[#242424] border border-white/5 rounded-xl p-5 cursor-pointer hover:bg-[#2a2a2a] hover:border-green-500/50 transition-all group"
+                            >
+                               <Folder size={32} className="text-green-500 mb-3 group-hover:scale-110 transition-transform" />
+                               <h3 className="font-bold text-lg truncate">{tag.name}</h3>
+                               <p className="text-xs text-neutral-500">{count} asset{count !== 1 && 's'}</p>
+                            </div>
+                         )
+                      })
+                   )}
+                 </div>
+              ) : (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                   {vaultAssets.filter((a: any) => a.tagId === activeVaultFolderId).length === 0 ? (
+                      <p className="text-neutral-500 col-span-full">This folder is empty.</p>
+                   ) : (
+                      vaultAssets.filter((a: any) => a.tagId === activeVaultFolderId).map((asset: any) => (
+                         <div 
+                           key={asset.id}
+                           onClick={() => handleImportAsset(asset)}
+                           className="bg-[#242424] rounded-xl overflow-hidden border border-white/5 hover:border-green-500/50 cursor-pointer group transition-all"
+                         >
+                            <div className="aspect-video bg-black relative">
+                              {asset.type === 'image' ? (
+                                 <img src={asset.url} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition" />
+                              ) : asset.type === 'video' ? (
+                                 <img src={`https://img.youtube.com/vi/${asset.youtubeId}/mqdefault.jpg`} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition" />
+                              ) : (
+                                 <div className="w-full h-full flex items-center justify-center text-neutral-500 group-hover:text-green-400 transition bg-[#181818]"><FileText size={32} /></div>
+                              )}
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-green-900/40 backdrop-blur-[2px] transition">
+                                 <div className="bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-xl">Import to Project</div>
+                              </div>
+                            </div>
+                            <div className="p-4">
+                               <h3 className="font-semibold text-sm truncate">{asset.title}</h3>
+                               <p className="text-[10px] text-neutral-500 mt-1 uppercase tracking-wider">{asset.type}</p>
+                            </div>
+                         </div>
+                      ))
+                   )}
+                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SAVE TO VAULT MODAL */}
+      {isSaveToVaultModalOpen && infoModalClip && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-in fade-in">
+          <form onSubmit={handleSaveToVaultSubmit} className="bg-[#1e1e1e] p-6 rounded-2xl w-full max-w-md shadow-2xl border border-green-500/30 flex flex-col relative">
+            <button type="button" onClick={() => setIsSaveToVaultModalOpen(false)} className="absolute top-4 right-4 text-neutral-400 hover:text-white transition">
+              <X size={20} />
+            </button>
+            <div className="flex items-center gap-3 mb-6">
+               <FolderPlus size={24} className="text-green-500" />
+               <h2 className="text-xl font-bold">Save to Vault</h2>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1 uppercase tracking-wider">Asset Title</label>
+                <input 
+                  type="text" 
+                  readOnly 
+                  value={infoModalClip.title} 
+                  className="w-full bg-[#242424] px-4 py-2.5 rounded-lg outline-none text-sm text-neutral-400 cursor-not-allowed border border-white/5"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1 uppercase tracking-wider">Select Vault Folder</label>
+                <select 
+                  required
+                  value={saveVaultFolderId}
+                  onChange={e => setSaveVaultFolderId(e.target.value)}
+                  className="w-full bg-[#242424] px-4 py-2.5 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-sm border border-white/5 appearance-none border-r-8 border-transparent"
+                >
+                  <option value="" disabled>Choose a folder...</option>
+                  {vaultTags.map((t: any) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                  <option value="new">+ Create New Folder...</option>
+                </select>
+              </div>
+
+              {saveVaultFolderId === 'new' && (
+                <div className="animate-in fade-in slide-in-from-top-2">
+                  <label className="block text-xs text-neutral-400 mb-1 uppercase tracking-wider">New Folder Name</label>
+                  <input 
+                    type="text"
+                    required
+                    autoFocus
+                    value={saveVaultNewFolderName}
+                    onChange={e => setSaveVaultNewFolderName(e.target.value)}
+                    className="w-full bg-[#242424] border border-green-500/50 px-4 py-2.5 rounded-lg outline-none focus:ring-1 focus:ring-green-500 text-sm"
+                    placeholder="E.g. Background Music"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+               <button type="button" onClick={() => setIsSaveToVaultModalOpen(false)} className="px-4 py-2 rounded-lg hover:bg-white/5 text-sm transition">Cancel</button>
+               <button type="submit" className="px-6 py-2 bg-green-600 rounded-lg hover:bg-green-500 font-bold text-sm transition shadow-lg shadow-green-500/20">Save Asset</button>
+            </div>
+          </form>
         </div>
       )}
     </div>
