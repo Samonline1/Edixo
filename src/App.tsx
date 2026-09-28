@@ -4,6 +4,8 @@ import VideoManager from './pages/VideoManager';
 import ClipEditorProjects from './pages/ClipEditorProjects';
 import ClipEditorWorkspace from './pages/ClipEditorWorkspace';
 import AssetManager from './pages/AssetManager';
+import SequenceDashboard from './pages/SequenceDashboard';
+import SequenceWorkspace from './pages/SequenceWorkspace';
 
 function App() {
   return (
@@ -14,6 +16,8 @@ function App() {
         <Route path="/clip-editor" element={<ClipEditorProjects />} />
         <Route path="/clip-editor/:projectId" element={<ClipEditorWorkspace />} />
         <Route path="/asset-vault" element={<AssetManager />} />
+        <Route path="/sequence-studio" element={<SequenceDashboard />} />
+        <Route path="/sequence-studio/:projectId" element={<SequenceWorkspace />} />
       </Routes>
     </BrowserRouter>
   );

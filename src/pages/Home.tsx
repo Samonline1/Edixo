@@ -47,6 +47,19 @@ export default function Home() {
               </p>
             </div>
           </Link>
+
+          {/* App 4: Sequence Studio */}
+          <Link to="/sequence-studio" className="block group">
+            <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-[#2a2a2a] hover:border-purple-500/50 hover:shadow-[0_0_20px_rgba(168,85,247,0.1)] h-full flex flex-col">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </div>
+              <h2 className="text-xl font-bold mb-2 text-white">Sequence Studio</h2>
+              <p className="text-sm text-neutral-400 flex-grow">
+                Synchronize your saved clips and assets to a master audio track with a precise timeline.
+              </p>
+            </div>
+          </Link>
         </div>
       </div>
     </div>
