@@ -6,6 +6,8 @@ import ClipEditorWorkspace from './pages/ClipEditorWorkspace';
 import AssetManager from './pages/AssetManager';
 import SequenceDashboard from './pages/SequenceDashboard';
 import SequenceWorkspace from './pages/SequenceWorkspace';
+import ShortsDashboard from './pages/ShortsDashboard';
+import ShortsWorkspace from './pages/ShortsWorkspace';
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
         <Route path="/asset-vault" element={<AssetManager />} />
         <Route path="/sequence-studio" element={<SequenceDashboard />} />
         <Route path="/sequence-studio/:projectId" element={<SequenceWorkspace />} />
+        <Route path="/shorts-maker" element={<ShortsDashboard />} />
+        <Route path="/shorts-maker/editor/:templateId" element={<ShortsWorkspace />} />
       </Routes>
     </BrowserRouter>
   );
