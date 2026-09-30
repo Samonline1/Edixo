@@ -60,6 +60,22 @@ export default function Home() {
               </p>
             </div>
           </Link>
+
+          {/* App 5: Shorts Maker */}
+          <Link to="/shorts-maker" className="block group">
+            <div className="bg-[#1e1e1e] border border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-[#2a2a2a] hover:border-pink-500/50 hover:shadow-[0_0_20px_rgba(236,72,153,0.1)] h-full flex flex-col">
+              <div className="w-12 h-12 rounded-xl bg-pink-500/10 text-pink-400 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold mb-2 text-white">Shorts Maker</h2>
+              <p className="text-sm text-neutral-400 flex-grow">
+                Create engaging vertical split-screen videos mapped to audio.
+              </p>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

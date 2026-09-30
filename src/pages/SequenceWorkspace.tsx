@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import YouTube from 'react-youtube';
-import { ArrowLeft, Play, Pause, FileText, Upload, ExternalLink, Plus, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { ArrowLeft, Play, Pause, FileText, Upload, ExternalLink, Plus, Trash2, Volume2, VolumeX, X, ArrowRight, PanelRightClose, PanelRightOpen, Check, List } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { ClipProject, ClipItem } from '../types';
 
@@ -31,6 +31,14 @@ export default function SequenceWorkspace() {
     clipIndex: number; // 0-based
   }
 
+  interface ScriptTask {
+    id: string;
+    index: number;
+    title: string;
+    completed: boolean;
+    notes: string;
+  }
+
   const [sequencePoints, setSequencePoints] = useState<SeqPoint[]>(() => {
     // Lazy initialize to prevent overwriting with defaults
     const id = window.location.pathname.split('/').pop();
@@ -38,6 +46,18 @@ export default function SequenceWorkspace() {
     if (saved) return JSON.parse(saved);
     return [{ id: uuidv4(), timeStr: "0:00", clipIndex: 0 }];
   });
+
+  const [scriptTasks, setScriptTasks] = useState<ScriptTask[]>(() => {
+    const id = window.location.pathname.split('/').pop();
+    const saved = localStorage.getItem(`yt_seq_scripts_${id}`);
+    if (saved) return JSON.parse(saved);
+    return [];
+  });
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+
+  const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
+  const [rightPanelTab, setRightPanelTab] = useState<'sequence' | 'scripting'>('sequence');
 
   const [activeClipIndex, setActiveClipIndex] = useState<number | null>(null);
 
@@ -66,6 +86,13 @@ export default function SequenceWorkspace() {
       localStorage.setItem(`yt_seq_points_${projectId}`, JSON.stringify(sequencePoints));
     }
   }, [sequencePoints, projectId]);
+
+  // Save scripting tasks
+  useEffect(() => {
+    if (projectId) {
+      localStorage.setItem(`yt_seq_scripts_${projectId}`, JSON.stringify(scriptTasks));
+    }
+  }, [scriptTasks, projectId]);
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -241,6 +268,31 @@ export default function SequenceWorkspace() {
           </Link>
           <span className="font-bold text-sm text-purple-400">Sequence Studio: <span className="text-white font-normal">{project.name}</span></span>
         </div>
+        <div className="flex items-center h-full">
+           {isRightPanelOpen && (
+             <div className="flex h-full items-center mr-4 border-r border-white/5 pr-4">
+               <button 
+                 className={`h-full px-6 text-xs font-bold tracking-wider uppercase transition border-b-2 flex items-center ${rightPanelTab === 'sequence' ? 'text-purple-400 border-purple-500 bg-purple-500/5' : 'text-neutral-500 border-transparent hover:text-neutral-300'}`}
+                 onClick={() => setRightPanelTab('sequence')}
+               >
+                 Sequence
+               </button>
+               <button 
+                 className={`h-full px-6 text-xs font-bold tracking-wider uppercase transition border-b-2 flex items-center ${rightPanelTab === 'scripting' ? 'text-purple-400 border-purple-500 bg-purple-500/5' : 'text-neutral-500 border-transparent hover:text-neutral-300'}`}
+                 onClick={() => setRightPanelTab('scripting')}
+               >
+                 Scripting
+               </button>
+             </div>
+           )}
+           <button 
+             onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+             className="text-neutral-400 hover:text-white p-2 transition"
+             title="Toggle Right Panel"
+           >
+             {isRightPanelOpen ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
+           </button>
+        </div>
       </header>
 
       {/* MAIN WORKSPACE */}
@@ -315,102 +367,191 @@ export default function SequenceWorkspace() {
         </div>
 
         {/* RIGHT PANEL: CLIPS & SCRIPT */}
+        {isRightPanelOpen && (
         <div className="w-80 bg-[#181818] border-l border-white/5 flex flex-col shrink-0">
-           
-           {/* Clips List */}
-           <div className="h-1/2 flex flex-col border-b border-white/5">
-              <div className="p-3 border-b border-white/5 bg-[#202020]">
-                 <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Project Assets ({projectClips.length})</h3>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
-                {projectClips.map((clip, idx) => (
-                  <div key={clip.id} className={`p-2 rounded-lg flex items-center gap-3 ${activeClipIndex === idx ? 'bg-purple-500/20 ring-1 ring-purple-500' : 'bg-[#242424]'}`}>
-                    <div className="w-6 h-6 rounded bg-black flex items-center justify-center font-mono text-xs font-bold text-neutral-400 shrink-0">
-                      {idx + 1}
-                    </div>
-                    <div className="w-10 h-10 rounded bg-black overflow-hidden shrink-0">
-                       {clip.type === 'image' ? (
-                         <img src={clip.url} className="w-full h-full object-cover opacity-70" />
-                       ) : clip.type === 'video' ? (
-                         <img src={`https://img.youtube.com/vi/${clip.youtubeId}/mqdefault.jpg`} className="w-full h-full object-cover opacity-70" />
-                       ) : (
-                         <div className="w-full h-full flex items-center justify-center"><FileText size={16} className="text-neutral-500"/></div>
-                       )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold truncate text-white">{clip.title}</p>
-                      <p className="text-[10px] text-neutral-500 truncate uppercase">{clip.type || 'video'}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-           </div>
 
-           {/* Sequence Timeline Area */}
-           <div className="h-1/2 flex flex-col">
-              <div className="p-3 border-b border-white/5 bg-[#202020] flex items-center justify-between">
-                 <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Timeline</h3>
-                    <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">Map timestamps to clips</p>
-                 </div>
-                 <button 
-                   onClick={() => setSequencePoints([...sequencePoints, { id: uuidv4(), timeStr: "0:00", clipIndex: 0 }])}
-                   className="p-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded transition"
-                 >
-                   <Plus size={16} />
-                 </button>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-                 {sequencePoints.map((pt, i) => (
-                    <div key={pt.id} className="flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#222222] px-3 py-2 rounded-lg border border-white/5 group transition-colors">
+           {rightPanelTab === 'sequence' ? (
+             <>
+               {/* Clips List */}
+               <div className="h-1/2 flex flex-col border-b border-white/5">
+                  <div className="p-3 border-b border-white/5 bg-[#202020]">
+                     <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Project Assets ({projectClips.length})</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
+                    {projectClips.map((clip, idx) => (
+                      <div key={clip.id} className={`p-2 rounded-lg flex items-center gap-3 ${activeClipIndex === idx ? 'bg-purple-500/20 ring-1 ring-purple-500' : 'bg-[#242424]'}`}>
+                        <div className="w-6 h-6 rounded bg-black flex items-center justify-center font-mono text-xs font-bold text-neutral-400 shrink-0">
+                          {idx + 1}
+                        </div>
+                        <div className="w-10 h-10 rounded bg-black overflow-hidden shrink-0">
+                           {clip.type === 'image' ? (
+                             <img src={clip.url} className="w-full h-full object-cover opacity-70" />
+                           ) : clip.type === 'video' ? (
+                             <img src={`https://img.youtube.com/vi/${clip.youtubeId}/mqdefault.jpg`} className="w-full h-full object-cover opacity-70" />
+                           ) : (
+                             <div className="w-full h-full flex items-center justify-center"><FileText size={16} className="text-neutral-500"/></div>
+                           )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold truncate text-white">{clip.title}</p>
+                          <p className="text-[10px] text-neutral-500 truncate uppercase">{clip.type || 'video'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+               </div>
+
+               {/* Sequence Timeline Area */}
+               <div className="h-1/2 flex flex-col">
+                  <div className="p-3 border-b border-white/5 bg-[#202020] flex items-center justify-between">
+                     <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Timeline</h3>
+                        <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">Map timestamps to clips</p>
+                     </div>
+                     <button 
+                       onClick={() => setSequencePoints([...sequencePoints, { id: uuidv4(), timeStr: "0:00", clipIndex: 0 }])}
+                       className="p-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded transition"
+                     >
+                       <Plus size={16} />
+                     </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+                     {sequencePoints.map((pt, i) => (
+                        <div key={pt.id} className="flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#222222] px-3 py-2 rounded-lg border border-white/5 group transition-colors">
+                           <input 
+                             type="text" 
+                             value={pt.timeStr}
+                             onChange={e => {
+                               const newPoints = [...sequencePoints];
+                               newPoints[i].timeStr = e.target.value;
+                               setSequencePoints(newPoints);
+                             }}
+                             onPointerDown={e => handleTimeScrub(i, e)}
+                             className="w-12 bg-transparent text-xs font-mono text-purple-400 font-bold text-center outline-none cursor-ns-resize hover:text-purple-300 transition-colors"
+                             placeholder="0:00"
+                             title="Drag up/down to adjust time"
+                           />
+                           <div className="w-[1px] h-4 bg-white/10 shrink-0" />
+                           <select
+                             value={pt.clipIndex}
+                             onChange={e => {
+                               const newPoints = [...sequencePoints];
+                               newPoints[i].clipIndex = parseInt(e.target.value, 10);
+                               setSequencePoints(newPoints);
+                             }}
+                             className="flex-1 bg-transparent text-xs outline-none text-neutral-300 font-medium cursor-pointer truncate"
+                           >
+                             {projectClips.map((c, idx) => (
+                                <option key={c.id} value={idx} className="bg-[#1e1e1e] text-white">{idx + 1}. {c.title}</option>
+                             ))}
+                           </select>
+                           <button 
+                             onClick={() => setSequencePoints(sequencePoints.filter(p => p.id !== pt.id))}
+                             className="text-neutral-500 hover:text-red-400 transition p-1 opacity-0 group-hover:opacity-100 shrink-0"
+                             title="Remove point"
+                           >
+                             <Trash2 size={14} />
+                           </button>
+                        </div>
+                     ))}
+                     {sequencePoints.length === 0 && (
+                        <p className="text-xs text-neutral-500 text-center mt-4">No sequence points added.</p>
+                     )}
+                  </div>
+               </div>
+             </>
+           ) : (
+             <div className="flex-1 flex flex-col h-full bg-[#181818] overflow-hidden relative">
+               {!activeTaskId ? (
+                 <div className="flex flex-col h-full">
+                   <div className="p-3 border-b border-white/5 bg-[#202020]">
+                     <form 
+                       onSubmit={e => {
+                         e.preventDefault();
+                         if (!newTaskTitle.trim()) return;
+                         const nextIdx = scriptTasks.length > 0 ? Math.max(...scriptTasks.map(t => t.index)) + 1 : 1;
+                         setScriptTasks([...scriptTasks, { id: uuidv4(), index: nextIdx, title: newTaskTitle, completed: false, notes: '' }]);
+                         setNewTaskTitle('');
+                       }}
+                       className="flex items-center gap-2"
+                     >
                        <input 
                          type="text" 
-                         value={pt.timeStr}
-                         onChange={e => {
-                           const newPoints = [...sequencePoints];
-                           newPoints[i].timeStr = e.target.value;
-                           setSequencePoints(newPoints);
-                         }}
-                         onPointerDown={e => handleTimeScrub(i, e)}
-                         className="w-12 bg-transparent text-xs font-mono text-purple-400 font-bold text-center outline-none cursor-ns-resize hover:text-purple-300 transition-colors"
-                         placeholder="0:00"
-                         title="Drag up/down to adjust time"
+                         value={newTaskTitle}
+                         onChange={e => setNewTaskTitle(e.target.value)}
+                         placeholder="New scripting task..."
+                         className="flex-1 bg-[#141414] border border-white/10 px-3 py-1.5 rounded text-sm text-white outline-none focus:border-purple-500"
                        />
-                       
-                       <div className="w-[1px] h-4 bg-white/10 shrink-0" />
-                       
-                       <select
-                         value={pt.clipIndex}
-                         onChange={e => {
-                           const newPoints = [...sequencePoints];
-                           newPoints[i].clipIndex = parseInt(e.target.value, 10);
-                           setSequencePoints(newPoints);
-                         }}
-                         className="flex-1 bg-transparent text-xs outline-none text-neutral-300 font-medium cursor-pointer truncate"
-                       >
-                         {projectClips.map((c, idx) => (
-                            <option key={c.id} value={idx} className="bg-[#1e1e1e] text-white">{idx + 1}. {c.title}</option>
-                         ))}
-                       </select>
-                       
-                       <button 
-                         onClick={() => {
-                           setSequencePoints(sequencePoints.filter(p => p.id !== pt.id));
-                         }}
-                         className="text-neutral-500 hover:text-red-400 transition p-1 opacity-0 group-hover:opacity-100 shrink-0"
-                         title="Remove point"
-                       >
-                         <Trash2 size={14} />
+                       <button type="submit" className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded shrink-0">
+                         <Plus size={16} />
                        </button>
-                    </div>
-                 ))}
-                 {sequencePoints.length === 0 && (
-                    <p className="text-xs text-neutral-500 text-center mt-4">No sequence points added.</p>
-                 )}
-              </div>
-           </div>
-
+                     </form>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                     {[...scriptTasks].sort((a,b) => (a.completed === b.completed ? a.index - b.index : a.completed ? 1 : -1)).map(task => (
+                       <div key={task.id} className="flex items-center gap-3 p-2 bg-[#1e1e1e] hover:bg-[#242424] rounded-lg mb-1 group transition">
+                         <button 
+                           onClick={() => setScriptTasks(scriptTasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t))}
+                           className={`w-5 h-5 flex items-center justify-center rounded border shrink-0 transition-colors ${task.completed ? 'bg-purple-600 border-purple-600 text-white' : 'border-neutral-500 text-neutral-400 hover:border-purple-400'}`}
+                         >
+                           {task.completed ? <Check size={12} strokeWidth={4} /> : <span className="text-[10px] font-bold">{task.index}</span>}
+                         </button>
+                         <span className={`flex-1 text-sm truncate transition-opacity ${task.completed ? 'text-neutral-500 line-through opacity-70' : 'text-neutral-200'}`}>
+                           {task.title}
+                         </span>
+                         <button 
+                           onClick={() => setActiveTaskId(task.id)}
+                           className="text-neutral-500 hover:text-purple-400 transition p-1 opacity-0 group-hover:opacity-100 shrink-0"
+                         >
+                           <ArrowRight size={16} />
+                         </button>
+                       </div>
+                     ))}
+                     {scriptTasks.length === 0 && (
+                        <p className="text-xs text-neutral-500 text-center mt-4">Add tasks to build your script outline.</p>
+                     )}
+                   </div>
+                 </div>
+               ) : (() => {
+                 const currentTask = scriptTasks.find(t => t.id === activeTaskId);
+                 if (!currentTask) return null;
+                 return (
+                   <div className="flex flex-col h-full bg-[#181818] absolute inset-0 z-10 animate-in slide-in-from-right-8 duration-200">
+                     <div className="flex items-center gap-2 p-3 border-b border-white/5 bg-[#202020]">
+                       <button onClick={() => setActiveTaskId(null)} className="text-neutral-400 hover:text-white p-1">
+                         <ArrowLeft size={16} />
+                       </button>
+                       <h3 className="text-sm font-bold text-white truncate flex-1">{currentTask.title}</h3>
+                       <button 
+                         onMouseDown={e => {
+                           e.preventDefault();
+                           document.execCommand('insertHTML', false, '<b>&starf;&nbsp;</b>');
+                         }}
+                         className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded transition"
+                         title="Insert Bold Pointer"
+                       >
+                         <List size={16} />
+                       </button>
+                     </div>
+                     <div className="flex-1 p-0 relative group">
+                        <div 
+                          className="w-full h-full p-4 bg-transparent text-sm text-neutral-300 outline-none overflow-y-auto custom-scrollbar"
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={e => {
+                            const newHTML = e.target.innerHTML;
+                            setScriptTasks(scriptTasks.map(t => t.id === activeTaskId ? { ...t, notes: newHTML } : t));
+                          }}
+                          dangerouslySetInnerHTML={{ __html: currentTask.notes }}
+                        />
+                     </div>
+                   </div>
+                 );
+               })()}
+             </div>
+           )}
         </div>
+        )}
       </div>
 
       {/* BOTTOM AUDIO TIMELINE */}
