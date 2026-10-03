@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import YouTube from 'react-youtube';
-import { ArrowLeft, Play, Pause, FileText, Upload, ExternalLink, Plus, Trash2, Volume2, VolumeX, X, ArrowRight, PanelRightClose, PanelRightOpen, Check, List } from 'lucide-react';
+import { ArrowLeft, Play, Pause, FileText, Upload, ExternalLink, Plus, Trash2, Volume2, VolumeX, X, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import type { ClipProject, ClipItem } from '../types';
+import ScriptingPanel from '../components/ScriptingPanel';
 
 import { set, get } from 'idb-keyval';
 
@@ -31,14 +32,6 @@ export default function SequenceWorkspace() {
     clipIndex: number; // 0-based
   }
 
-  interface ScriptTask {
-    id: string;
-    index: number;
-    title: string;
-    completed: boolean;
-    notes: string;
-  }
-
   const [sequencePoints, setSequencePoints] = useState<SeqPoint[]>(() => {
     // Lazy initialize to prevent overwriting with defaults
     const id = window.location.pathname.split('/').pop();
@@ -46,15 +39,6 @@ export default function SequenceWorkspace() {
     if (saved) return JSON.parse(saved);
     return [{ id: uuidv4(), timeStr: "0:00", clipIndex: 0 }];
   });
-
-  const [scriptTasks, setScriptTasks] = useState<ScriptTask[]>(() => {
-    const id = window.location.pathname.split('/').pop();
-    const saved = localStorage.getItem(`yt_seq_scripts_${id}`);
-    if (saved) return JSON.parse(saved);
-    return [];
-  });
-  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
 
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
   const [rightPanelTab, setRightPanelTab] = useState<'sequence' | 'scripting'>('sequence');
@@ -86,13 +70,6 @@ export default function SequenceWorkspace() {
       localStorage.setItem(`yt_seq_points_${projectId}`, JSON.stringify(sequencePoints));
     }
   }, [sequencePoints, projectId]);
-
-  // Save scripting tasks
-  useEffect(() => {
-    if (projectId) {
-      localStorage.setItem(`yt_seq_scripts_${projectId}`, JSON.stringify(scriptTasks));
-    }
-  }, [scriptTasks, projectId]);
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -461,94 +438,7 @@ export default function SequenceWorkspace() {
                </div>
              </>
            ) : (
-             <div className="flex-1 flex flex-col h-full bg-[#181818] overflow-hidden relative">
-               {!activeTaskId ? (
-                 <div className="flex flex-col h-full">
-                   <div className="p-3 border-b border-white/5 bg-[#202020]">
-                     <form 
-                       onSubmit={e => {
-                         e.preventDefault();
-                         if (!newTaskTitle.trim()) return;
-                         const nextIdx = scriptTasks.length > 0 ? Math.max(...scriptTasks.map(t => t.index)) + 1 : 1;
-                         setScriptTasks([...scriptTasks, { id: uuidv4(), index: nextIdx, title: newTaskTitle, completed: false, notes: '' }]);
-                         setNewTaskTitle('');
-                       }}
-                       className="flex items-center gap-2"
-                     >
-                       <input 
-                         type="text" 
-                         value={newTaskTitle}
-                         onChange={e => setNewTaskTitle(e.target.value)}
-                         placeholder="New scripting task..."
-                         className="flex-1 bg-[#141414] border border-white/10 px-3 py-1.5 rounded text-sm text-white outline-none focus:border-purple-500"
-                       />
-                       <button type="submit" className="p-2 bg-purple-600 hover:bg-purple-500 text-white rounded shrink-0">
-                         <Plus size={16} />
-                       </button>
-                     </form>
-                   </div>
-                   <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
-                     {[...scriptTasks].sort((a,b) => (a.completed === b.completed ? a.index - b.index : a.completed ? 1 : -1)).map(task => (
-                       <div key={task.id} className="flex items-center gap-3 p-2 bg-[#1e1e1e] hover:bg-[#242424] rounded-lg mb-1 group transition">
-                         <button 
-                           onClick={() => setScriptTasks(scriptTasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t))}
-                           className={`w-5 h-5 flex items-center justify-center rounded border shrink-0 transition-colors ${task.completed ? 'bg-purple-600 border-purple-600 text-white' : 'border-neutral-500 text-neutral-400 hover:border-purple-400'}`}
-                         >
-                           {task.completed ? <Check size={12} strokeWidth={4} /> : <span className="text-[10px] font-bold">{task.index}</span>}
-                         </button>
-                         <span className={`flex-1 text-sm truncate transition-opacity ${task.completed ? 'text-neutral-500 line-through opacity-70' : 'text-neutral-200'}`}>
-                           {task.title}
-                         </span>
-                         <button 
-                           onClick={() => setActiveTaskId(task.id)}
-                           className="text-neutral-500 hover:text-purple-400 transition p-1 opacity-0 group-hover:opacity-100 shrink-0"
-                         >
-                           <ArrowRight size={16} />
-                         </button>
-                       </div>
-                     ))}
-                     {scriptTasks.length === 0 && (
-                        <p className="text-xs text-neutral-500 text-center mt-4">Add tasks to build your script outline.</p>
-                     )}
-                   </div>
-                 </div>
-               ) : (() => {
-                 const currentTask = scriptTasks.find(t => t.id === activeTaskId);
-                 if (!currentTask) return null;
-                 return (
-                   <div className="flex flex-col h-full bg-[#181818] absolute inset-0 z-10 animate-in slide-in-from-right-8 duration-200">
-                     <div className="flex items-center gap-2 p-3 border-b border-white/5 bg-[#202020]">
-                       <button onClick={() => setActiveTaskId(null)} className="text-neutral-400 hover:text-white p-1">
-                         <ArrowLeft size={16} />
-                       </button>
-                       <h3 className="text-sm font-bold text-white truncate flex-1">{currentTask.title}</h3>
-                       <button 
-                         onMouseDown={e => {
-                           e.preventDefault();
-                           document.execCommand('insertHTML', false, '<b>&starf;&nbsp;</b>');
-                         }}
-                         className="p-1.5 text-neutral-400 hover:text-white hover:bg-white/10 rounded transition"
-                         title="Insert Bold Pointer"
-                       >
-                         <List size={16} />
-                       </button>
-                     </div>
-                     <div className="flex-1 p-0 relative group">
-                        <div 
-                          className="w-full h-full p-4 bg-transparent text-sm text-neutral-300 outline-none overflow-y-auto custom-scrollbar"
-                          contentEditable
-                          suppressContentEditableWarning
-                          onBlur={e => {
-                            const newHTML = e.target.innerHTML;
-                            setScriptTasks(scriptTasks.map(t => t.id === activeTaskId ? { ...t, notes: newHTML } : t));
-                          }}
-                          dangerouslySetInnerHTML={{ __html: currentTask.notes }}
-                        />
-                     </div>
-                   </div>
-                 );
-               })()}
-             </div>
+             <ScriptingPanel identifier={projectId!} accentColor="purple" />
            )}
         </div>
         )}

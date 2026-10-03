@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import YouTube from 'react-youtube';
-import { Plus, ArrowLeft, Play, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink, Volume2, VolumeX, Folder, FolderOpen, FolderPlus, Check } from 'lucide-react';
+import { Plus, ArrowLeft, Play, Pause, Trash2, Repeat, Scissors, Info, X, Image as ImageIcon, Video, FileText, ExternalLink, Volume2, VolumeX, Folder, FolderOpen, FolderPlus, Check, ChevronUp, ChevronDown } from 'lucide-react';
 import type { ClipProject, ClipItem } from '../types';
 import { extractVideoData } from '../utils';
+import ScriptingPanel from '../components/ScriptingPanel';
 
 export default function ClipEditorWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -14,6 +15,9 @@ export default function ClipEditorWorkspace() {
     const saved = localStorage.getItem('clip_items');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [rightTab, setRightTab] = useState<'clips' | 'scripting'>('clips');
+  const [isInputVisible, setIsInputVisible] = useState(true);
 
   // Load project details
   useEffect(() => {
@@ -84,23 +88,34 @@ export default function ClipEditorWorkspace() {
   const [isModalPlaying, setIsModalPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
 
-  // Loop & End Check for Main Player
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (mainPlayerRef.current && currentClip && isPlaying) {
-        const time = mainPlayerRef.current.getCurrentTime();
-        if (time >= currentClip.endTime) {
-          if (currentClip.loop) {
-             mainPlayerRef.current.seekTo(currentClip.startTime, true);
-          } else {
-             mainPlayerRef.current.pauseVideo();
-             setIsPlaying(false);
-          }
+  // Scrubber State
+  const [scrubTime, setScrubTime] = useState(0);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const animationRef = useRef<number>(0);
+
+  // Smooth Loop & End Check for Main Player
+  const updateLoop = () => {
+    if (mainPlayerRef.current && currentClip && isPlaying) {
+      const time = mainPlayerRef.current.getCurrentTime();
+      if (!isScrubbing) {
+        setScrubTime(time);
+      }
+      if (time >= currentClip.endTime) {
+        if (currentClip.loop) {
+           mainPlayerRef.current.seekTo(currentClip.startTime, true);
+        } else {
+           mainPlayerRef.current.pauseVideo();
+           setIsPlaying(false);
         }
       }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [currentClip, isPlaying]);
+    }
+    animationRef.current = requestAnimationFrame(updateLoop);
+  };
+
+  useEffect(() => {
+    animationRef.current = requestAnimationFrame(updateLoop);
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [currentClip, isPlaying, isScrubbing]);
 
   // Loop & End Check for Modal Player
   useEffect(() => {
@@ -338,6 +353,53 @@ export default function ClipEditorWorkspace() {
               />
             )}
             
+            {/* Scrubber Bar added to the bottom of the active clip */}
+            {currentClip && currentClip.type !== 'image' && currentClip.type !== 'article' && (
+              <div className="absolute bottom-4 right-4 left-20 bg-black/80 backdrop-blur-md border border-white/10 rounded-lg p-3 flex items-center gap-4 z-50">
+                 
+                 <button 
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     if (mainPlayerRef.current) {
+                        if (isPlaying) { mainPlayerRef.current.pauseVideo(); setIsPlaying(false); }
+                        else { mainPlayerRef.current.playVideo(); setIsPlaying(true); }
+                     }
+                   }}
+                   className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center transition shrink-0"
+                 >
+                   {isPlaying ? <Pause size={14} fill="white" /> : <Play size={14} fill="white" className="ml-0.5" />}
+                 </button>
+
+                 <div className="flex-1 flex flex-col justify-center gap-1 relative">
+                    <div className="relative w-full h-4 flex items-center group cursor-pointer">
+                      <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden pointer-events-none">
+                        <div className="absolute top-0 left-0 h-full bg-blue-500" style={{ width: `${(scrubTime - currentClip.startTime) / (currentClip.endTime - currentClip.startTime) * 100 || 0}%` }} />
+                      </div>
+                      <input 
+                        type="range"
+                        min={currentClip.startTime} max={currentClip.endTime} step="0.01"
+                        value={scrubTime}
+                        onMouseDown={() => setIsScrubbing(true)}
+                        onMouseUp={() => setIsScrubbing(false)}
+                        onTouchStart={() => setIsScrubbing(true)}
+                        onTouchEnd={() => setIsScrubbing(false)}
+                        onChange={e => {
+                          const val = Number(e.target.value);
+                          setScrubTime(val);
+                          if (mainPlayerRef.current) mainPlayerRef.current.seekTo(val, true);
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-neutral-400 font-mono">
+                      <span>{formatTime(scrubTime)}</span>
+                      <span>{formatTime(currentClip.endTime)}</span>
+                    </div>
+                 </div>
+
+              </div>
+            )}
+
             {currentClip.type !== 'image' && currentClip.type !== 'article' && (
               <button
                 onClick={(e) => {
@@ -353,7 +415,7 @@ export default function ClipEditorWorkspace() {
                     }
                   }
                 }}
-                className="absolute bottom-4 left-4 bg-black/80 text-white p-2 md:p-3 rounded-lg hover:bg-black transition border border-white/10 z-50 backdrop-blur-md cursor-pointer flex items-center justify-center"
+                className="absolute bottom-4 left-4 bg-black/80 text-white p-2 md:p-3 rounded-lg hover:bg-black transition border border-white/10 z-50 backdrop-blur-md cursor-pointer flex items-center justify-center w-12 h-12"
                 title={isMuted ? "Unmute" : "Mute"}
               >
                 {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
@@ -380,170 +442,203 @@ export default function ClipEditorWorkspace() {
               <ArrowLeft size={16} />
               <span className="text-sm font-medium">{project.name}</span>
             </Link>
-            <button
-              onClick={() => setIsVaultModalOpen(true)}
-              className="text-xs flex items-center gap-1.5 bg-green-500/10 text-green-500 px-3 py-1.5 rounded-lg hover:bg-green-500/20 transition font-medium"
-            >
-              <FolderOpen size={14} /> Vault
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsVaultModalOpen(true)}
+                className="text-xs flex items-center gap-1.5 bg-green-500/10 text-green-500 px-3 py-1.5 rounded-lg hover:bg-green-500/20 transition font-medium"
+              >
+                <FolderOpen size={14} /> Vault
+              </button>
+              <button
+                onClick={() => setIsInputVisible(!isInputVisible)}
+                className="text-xs flex items-center gap-1.5 bg-[#242424] text-neutral-400 px-2 py-1.5 rounded-lg hover:bg-[#2a2a2a] hover:text-white transition"
+                title={isInputVisible ? "Hide Input" : "Show Input"}
+              >
+                {isInputVisible ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+            </div>
           </div>
           
-          <form onSubmit={handleOpenModal} className="flex gap-2 relative">
-            <button 
-              type="button"
-              onClick={() => {
-                 if (inputMode === 'video') setInputMode('image');
-                 else if (inputMode === 'image') setInputMode('article');
-                 else setInputMode('video');
-              }}
-              className="bg-[#242424] p-3 rounded-lg hover:bg-[#2a2a2a] text-neutral-400 hover:text-white transition flex-shrink-0 w-11 flex justify-center"
-              title={`Switch Mode (Current: ${inputMode})`}
-            >
-              {inputMode === 'video' && <Video size={20} />}
-              {inputMode === 'image' && <ImageIcon size={20} />}
-              {inputMode === 'article' && <FileText size={20} />}
-            </button>
-            <input
-              type="text"
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              placeholder={inputMode === 'video' ? "Paste YouTube Link..." : inputMode === 'image' ? "Paste Image URL..." : "Paste Article URL..."}
-              className="flex-1 bg-[#242424] text-sm rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-blue-500 transition-all min-w-0"
-            />
-            {inputMode === 'image' && (
+          {isInputVisible && (
+            <form onSubmit={handleOpenModal} className="flex gap-2 relative">
+              <button 
+                type="button"
+                onClick={() => {
+                   if (inputMode === 'video') setInputMode('image');
+                   else if (inputMode === 'image') setInputMode('article');
+                   else setInputMode('video');
+                }}
+                className="bg-[#242424] p-3 rounded-lg hover:bg-[#2a2a2a] text-neutral-400 hover:text-white transition flex-shrink-0 w-11 flex justify-center"
+                title={`Switch Mode (Current: ${inputMode})`}
+              >
+                {inputMode === 'video' && <Video size={20} />}
+                {inputMode === 'image' && <ImageIcon size={20} />}
+                {inputMode === 'article' && <FileText size={20} />}
+              </button>
               <input
-                type="number"
-                value={imageTimer}
-                onChange={(e) => setImageTimer(Number(e.target.value))}
-                title="Zoom Animation Duration (seconds)"
-                className="w-16 bg-[#242424] text-sm text-center rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all"
-                min="1"
+                type="text"
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder={inputMode === 'video' ? "Paste YouTube Link..." : inputMode === 'image' ? "Paste Image URL..." : "Paste Article URL..."}
+                className="flex-1 bg-[#242424] text-sm rounded-lg px-4 py-3 outline-none focus:ring-1 focus:ring-blue-500 transition-all min-w-0"
               />
-            )}
-            <button type="submit" className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition flex-shrink-0">
-              <Plus size={20} />
+              {inputMode === 'image' && (
+                <input
+                  type="number"
+                  value={imageTimer}
+                  onChange={(e) => setImageTimer(Number(e.target.value))}
+                  title="Zoom Animation Duration (seconds)"
+                  className="w-16 bg-[#242424] text-sm text-center rounded-lg outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                  min="1"
+                />
+              )}
+              <button type="submit" className="bg-blue-600 p-3 rounded-lg hover:bg-blue-500 transition flex-shrink-0">
+                <Plus size={20} />
+              </button>
+            </form>
+          )}
+
+          {/* TABS */}
+          <div className="flex border-b border-white/5 pt-2">
+            <button
+              onClick={() => setRightTab('clips')}
+              className={`flex-1 pb-2 text-xs font-bold uppercase tracking-wider transition border-b-2 ${rightTab === 'clips' ? 'text-blue-400 border-blue-500' : 'text-neutral-500 border-transparent hover:text-neutral-300'}`}
+            >
+              Clips
             </button>
-          </form>
+            <button
+              onClick={() => setRightTab('scripting')}
+              className={`flex-1 pb-2 text-xs font-bold uppercase tracking-wider transition border-b-2 ${rightTab === 'scripting' ? 'text-blue-400 border-blue-500' : 'text-neutral-500 border-transparent hover:text-neutral-300'}`}
+            >
+              Scripting
+            </button>
+          </div>
         </div>
 
-        {/* Clip List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-          {projectClips.map(clip => {
-            const isActive = currentClip?.id === clip.id;
-            const isInVault = vaultAssets.some(va => {
-               if (!clip.type || clip.type === 'video') {
-                  return va.youtubeId === clip.youtubeId && va.youtubeId && va.startTime === clip.startTime && va.endTime === clip.endTime;
-               }
-               return va.url === clip.url;
-            });
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden relative">
+          {rightTab === 'clips' ? (
+            <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+              {projectClips.map(clip => {
+                const isActive = currentClip?.id === clip.id;
+                const isInVault = vaultAssets.some(va => {
+                   if (!clip.type || clip.type === 'video') {
+                      return va.youtubeId === clip.youtubeId && va.youtubeId && va.startTime === clip.startTime && va.endTime === clip.endTime;
+                   }
+                   return va.url === clip.url;
+                });
 
-            if (clip.type === 'article') {
-               return (
+                if (clip.type === 'article') {
+                   return (
+                      <div 
+                        key={clip.id}
+                        onClick={() => setCurrentClip(clip)}
+                        className={`p-3 rounded-xl cursor-pointer group transition-all duration-300 flex items-center gap-3 ${
+                          isActive ? 'bg-[#2a2a2a] ring-1 ring-blue-500/50' : 'bg-[#202020] hover:bg-[#2a2a2a]'
+                        }`}
+                      >
+                         <div className="w-10 h-10 rounded-lg bg-[#181818] flex items-center justify-center text-neutral-500 border border-white/5 shrink-0 relative">
+                            {isInVault && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#1e1e1e]" title="Saved in Vault" />}
+                            <FileText size={18} />
+                         </div>
+                         <div className="flex-1 min-w-0">
+                            <h3 className="font-semibold text-sm truncate">{clip.title}</h3>
+                            <p className="text-[10px] text-neutral-500 truncate">{clip.url}</p>
+                         </div>
+                         <div className="flex gap-1 shrink-0">
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); setInfoModalClip(clip); }}
+                             className="text-neutral-500 hover:text-white transition p-1"
+                             title="Info"
+                           >
+                             <Info size={16} />
+                           </button>
+                           <button 
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               setClips(clips.filter(c => c.id !== clip.id));
+                               if(currentClip?.id === clip.id) setCurrentClip(null);
+                             }}
+                             className="text-neutral-500 hover:text-red-500 transition p-1"
+                             title="Delete"
+                           >
+                             <Trash2 size={16} />
+                           </button>
+                         </div>
+                      </div>
+                   );
+                }
+
+                return (
                   <div 
                     key={clip.id}
                     onClick={() => setCurrentClip(clip)}
-                    className={`p-3 rounded-xl cursor-pointer group transition-all duration-300 flex items-center gap-3 ${
+                    className={`p-3 rounded-xl cursor-pointer group transition-all duration-300 ${
                       isActive ? 'bg-[#2a2a2a] ring-1 ring-blue-500/50' : 'bg-[#202020] hover:bg-[#2a2a2a]'
                     }`}
                   >
-                     <div className="w-10 h-10 rounded-lg bg-[#181818] flex items-center justify-center text-neutral-500 border border-white/5 shrink-0 relative">
-                        {isInVault && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#1e1e1e]" title="Saved in Vault" />}
-                        <FileText size={18} />
-                     </div>
-                     <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm truncate">{clip.title}</h3>
-                        <p className="text-[10px] text-neutral-500 truncate">{clip.url}</p>
-                     </div>
-                     <div className="flex gap-1 shrink-0">
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); setInfoModalClip(clip); }}
-                         className="text-neutral-500 hover:text-white transition p-1"
-                         title="Info"
-                       >
-                         <Info size={16} />
-                       </button>
-                       <button 
-                         onClick={(e) => {
-                           e.stopPropagation();
-                           setClips(clips.filter(c => c.id !== clip.id));
-                           if(currentClip?.id === clip.id) setCurrentClip(null);
-                         }}
-                         className="text-neutral-500 hover:text-red-500 transition p-1"
-                         title="Delete"
-                       >
-                         <Trash2 size={16} />
-                       </button>
-                     </div>
+                    <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-3">
+                      {isInVault && <div className="absolute top-2 left-2 z-20 w-2.5 h-2.5 bg-green-500 rounded-full border border-black shadow-lg" title="Saved in Vault" />}
+                      <img 
+                        src={clip.type === 'image' ? clip.url : `https://img.youtube.com/vi/${clip.youtubeId}/mqdefault.jpg`} 
+                        alt="Thumbnail"
+                        className={`w-full h-full object-cover transition-opacity duration-500 ${isActive ? 'opacity-50' : 'opacity-80 group-hover:opacity-100'}`}
+                      />
+                      {isActive && isPlaying && clip.type !== 'image' && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-blue-500/90 flex items-center justify-center animate-pulse">
+                            <Play size={16} fill="white" className="ml-1" />
+                          </div>
+                        </div>
+                      )}
+                      {clip.type !== 'image' && (
+                        <div className="absolute bottom-1 right-1 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono border border-white/10">
+                           {formatTime(clip.startTime)} - {formatTime(clip.endTime)}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-between items-start px-1">
+                       <div>
+                         <h3 className="font-semibold text-sm truncate w-40">{clip.title}</h3>
+                         {clip.loop && <span className="text-[10px] text-blue-400 flex items-center gap-1 mt-1"><Repeat size={10}/> Looping</span>}
+                       </div>
+                       
+                       <div className="flex gap-1">
+                         <button 
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setInfoModalClip(clip);
+                           }}
+                           className="text-neutral-500 hover:text-white transition p-1"
+                           title="Info"
+                         >
+                           <Info size={16} />
+                         </button>
+                         <button 
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setClips(clips.filter(c => c.id !== clip.id));
+                             if(currentClip?.id === clip.id) setCurrentClip(null);
+                           }}
+                           className="text-neutral-500 hover:text-red-500 transition p-1"
+                           title="Delete"
+                         >
+                           <Trash2 size={16} />
+                         </button>
+                       </div>
+                    </div>
                   </div>
-               );
-            }
-
-            return (
-              <div 
-                key={clip.id}
-                onClick={() => setCurrentClip(clip)}
-                className={`p-3 rounded-xl cursor-pointer group transition-all duration-300 ${
-                  isActive ? 'bg-[#2a2a2a] ring-1 ring-blue-500/50' : 'bg-[#202020] hover:bg-[#2a2a2a]'
-                }`}
-              >
-                <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-3">
-                  {isInVault && <div className="absolute top-2 left-2 z-20 w-2.5 h-2.5 bg-green-500 rounded-full border border-black shadow-lg" title="Saved in Vault" />}
-                  <img 
-                    src={clip.type === 'image' ? clip.url : `https://img.youtube.com/vi/${clip.youtubeId}/mqdefault.jpg`} 
-                    alt="Thumbnail"
-                    className={`w-full h-full object-cover transition-opacity duration-500 ${isActive ? 'opacity-50' : 'opacity-80 group-hover:opacity-100'}`}
-                  />
-                  {isActive && isPlaying && clip.type !== 'image' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-10 h-10 rounded-full bg-blue-500/90 flex items-center justify-center animate-pulse">
-                        <Play size={16} fill="white" className="ml-1" />
-                      </div>
-                    </div>
-                  )}
-                  {clip.type !== 'image' && (
-                    <div className="absolute bottom-1 right-1 bg-black/80 px-2 py-0.5 rounded text-[10px] font-mono border border-white/10">
-                       {formatTime(clip.startTime)} - {formatTime(clip.endTime)}
-                    </div>
-                  )}
+                );
+              })}
+              {projectClips.length === 0 && (
+                <div className="text-center text-sm text-neutral-500 mt-10">
+                  No clips added yet.
                 </div>
-                
-                <div className="flex justify-between items-start px-1">
-                   <div>
-                     <h3 className="font-semibold text-sm truncate w-40">{clip.title}</h3>
-                     {clip.loop && <span className="text-[10px] text-blue-400 flex items-center gap-1 mt-1"><Repeat size={10}/> Looping</span>}
-                   </div>
-                   
-                   <div className="flex gap-1">
-                     <button 
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         setInfoModalClip(clip);
-                       }}
-                       className="text-neutral-500 hover:text-white transition p-1"
-                       title="Info"
-                     >
-                       <Info size={16} />
-                     </button>
-                     <button 
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         setClips(clips.filter(c => c.id !== clip.id));
-                         if(currentClip?.id === clip.id) setCurrentClip(null);
-                       }}
-                       className="text-neutral-500 hover:text-red-500 transition p-1"
-                       title="Delete"
-                     >
-                       <Trash2 size={16} />
-                     </button>
-                   </div>
-                </div>
-              </div>
-            );
-          })}
-          {projectClips.length === 0 && (
-            <div className="text-center text-sm text-neutral-500 mt-10">
-              No clips added yet.
+              )}
             </div>
+          ) : (
+            <ScriptingPanel identifier={currentClip ? currentClip.id : projectId!} accentColor="blue" />
           )}
         </div>
       </div>
